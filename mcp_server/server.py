@@ -1,15 +1,3 @@
-"""
-MCP Server for the StatCan Open Database of Greenhouses (ODG_V1).
-
-Exposes the shapefile data over JSON-RPC via Streamable HTTP transport,
-compatible with ChatGPT web app connectors.
-
-Run:
-    python -m mcp_server.server
-    # or:
-    python mcp_server/server.py
-"""
-
 import json
 import os
 
@@ -34,7 +22,8 @@ mcp = FastMCP(
         "records across Canadian provinces (Ontario, Quebec, British Columbia, Alberta) "
         "identified from satellite imagery. You can query greenhouses by province, "
         "area, image year, or get aggregate statistics. "
-        "Tool responses include markdown tables — render them directly for the user."
+        "Tool responses use a structured table format with type, columns, and rows — "
+        "render them as tables for the user."
     ),
     host=HOST,
     port=PORT,
@@ -44,23 +33,20 @@ mcp = FastMCP(
 @mcp.tool()
 def get_database_schema() -> str:
     """
-    Get the schema of the greenhouse database, including column names,
-    data types, and sample values. Use this to understand what data is
-    available before querying.
+   schema for all columns
     """
     schema = get_schema()
 
-    lines = ["# Greenhouse Database Schema", ""]
-    lines.append("| Column | Type | Sample Values |")
-    lines.append("|--------|------|---------------|")
+    rows = []
     for col, info in schema.items():
         col_type = info.get("type", "")
-        samples = info.get("sample_values", info.get("description", ""))
-        if isinstance(samples, list):
-            samples = ", ".join(str(s) for s in samples)
-        lines.append(f"| {col} | {col_type} | {samples} |")
+        rows.append([col, col_type])
 
-    return "\n".join(lines)
+    return json.dumps({
+        "type": "table",
+        "columns": ["Column", "Type"],
+        "rows": rows,
+    }, indent=2, default=str)
 
 
 @mcp.tool()
@@ -73,52 +59,49 @@ def get_statistics() -> str:
     """
     stats = get_summary_stats()
 
-    lines = [f"# Greenhouse Database Statistics", ""]
-    lines.append(f"**Total greenhouses:** {stats['total_greenhouses']}")
-    lines.append("")
+    province_table = {
+        "type": "table",
+        "columns": ["Province", "Count"],
+        "rows": [[p, c] for p, c in stats["provinces"].items()],
+    }
 
-    # Province table
-    lines.append("## Greenhouses by Province")
-    lines.append("")
-    lines.append("| Province | Count |")
-    lines.append("|----------|-------|")
-    for province, count in stats["provinces"].items():
-        lines.append(f"| {province} | {count} |")
-    lines.append("")
+    year_table = {
+        "type": "table",
+        "columns": ["Year", "Count"],
+        "rows": [[y, c] for y, c in stats["image_years"].items()],
+    }
 
-    # Image year table
-    lines.append("## Greenhouses by Image Year")
-    lines.append("")
-    lines.append("| Year | Count |")
-    lines.append("|------|-------|")
-    for year, count in stats["image_years"].items():
-        lines.append(f"| {year} | {count} |")
-    lines.append("")
-
-    # Area stats table
     area = stats["area_stats_sq_meters"]
-    lines.append("## Area Statistics (square meters)")
-    lines.append("")
-    lines.append("| Metric | Value |")
-    lines.append("|--------|-------|")
-    lines.append(f"| Mean | {area['mean']:,.2f} |")
-    lines.append(f"| Median | {area['median']:,.2f} |")
-    lines.append(f"| Min | {area['min']:,.2f} |")
-    lines.append(f"| Max | {area['max']:,.2f} |")
-    lines.append(f"| Total | {area['total']:,.2f} |")
-    lines.append("")
+    area_table = {
+        "type": "table",
+        "columns": ["Metric", "Value (m²)"],
+        "rows": [
+            ["Mean", area["mean"]],
+            ["Median", area["median"]],
+            ["Min", area["min"]],
+            ["Max", area["max"]],
+            ["Total", area["total"]],
+        ],
+    }
 
-    # Coordinate ranges
     lat = stats["latitude_range"]
     lon = stats["longitude_range"]
-    lines.append("## Geographic Coverage")
-    lines.append("")
-    lines.append("| Coordinate | Min | Max |")
-    lines.append("|------------|-----|-----|")
-    lines.append(f"| Latitude | {lat['min']} | {lat['max']} |")
-    lines.append(f"| Longitude | {lon['min']} | {lon['max']} |")
+    geo_table = {
+        "type": "table",
+        "columns": ["Coordinate", "Min", "Max"],
+        "rows": [
+            ["Latitude", lat["min"], lat["max"]],
+            ["Longitude", lon["min"], lon["max"]],
+        ],
+    }
 
-    return "\n".join(lines)
+    return json.dumps({
+        "total_greenhouses": stats["total_greenhouses"],
+        "provinces": province_table,
+        "image_years": year_table,
+        "area_stats": area_table,
+        "geographic_coverage": geo_table,
+    }, indent=2)
 
 
 @mcp.tool()
@@ -144,7 +127,7 @@ def search_greenhouses(
         offset: Number of records to skip for pagination.
 
     Returns:
-        Markdown table of greenhouse records with pagination info.
+        JSON with total count, pagination info, and a table of greenhouse records.
     """
     result = query_greenhouses(
         province=province,
@@ -160,94 +143,84 @@ def search_greenhouses(
     off = result["offset"]
     lim = result["limit"]
 
-    lines = [f"# Search Results", ""]
-    lines.append(f"**Showing {off + 1}–{off + len(records)} of {total} greenhouses**")
-    lines.append("")
+    rows = []
+    for r in records:
+        rows.append([
+            r["id"],
+            r["province"],
+            r["data_source"],
+            r["image_year"],
+            r["latitude"],
+            r["longitude"],
+            r["area_sq_meters"],
+        ])
 
-    if records:
-        lines.append("| ID | Province | Data Source | Image Year | Latitude | Longitude | Area (m²) |")
-        lines.append("|----|----------|-------------|------------|----------|-----------|-----------|")
-        for r in records:
-            lines.append(
-                f"| {r['id']} "
-                f"| {r['province']} "
-                f"| {r['data_source']} "
-                f"| {r['image_year']} "
-                f"| {r['latitude']} "
-                f"| {r['longitude']} "
-                f"| {r['area_sq_meters']:,.2f} |"
-            )
-    else:
-        lines.append("*No greenhouses found matching the given filters.*")
-
-    if total > off + lim:
-        lines.append("")
-        lines.append(f"*Use `offset={off + lim}` to see the next page.*")
-
-    return "\n".join(lines)
+    return json.dumps({
+        "total": total,
+        "offset": off,
+        "limit": lim,
+        "results": {
+            "type": "table",
+            "columns": ["ID", "Province", "Data Source", "Image Year", "Latitude", "Longitude", "Area (m²)"],
+            "rows": rows,
+        },
+    }, indent=2)
 
 
 @mcp.tool()
 def get_greenhouse(greenhouse_id: int) -> str:
-    """
-    Get detailed information about a specific greenhouse by its ID,
-    including its GeoJSON polygon geometry.
-
-    Args:
-        greenhouse_id: The numeric ID of the greenhouse (0-based index).
-    """
     record = get_greenhouse_by_id(greenhouse_id)
     if record is None:
-        return f"**Error:** Greenhouse with ID {greenhouse_id} not found."
+        return json.dumps({"error": f"Greenhouse with ID {greenhouse_id} not found"})
 
     geojson = record.pop("geometry_geojson", None)
 
-    lines = [f"# Greenhouse #{record['id']}", ""]
-    lines.append("| Field | Value |")
-    lines.append("|-------|-------|")
-    lines.append(f"| ID | {record['id']} |")
-    lines.append(f"| Province | {record['province']} |")
-    lines.append(f"| Data Source | {record['data_source']} |")
-    lines.append(f"| Image Year | {record['image_year']} |")
-    lines.append(f"| Latitude | {record['latitude']} |")
-    lines.append(f"| Longitude | {record['longitude']} |")
-    lines.append(f"| PRUID | {record['pruid']} |")
-    lines.append(f"| Area (m²) | {record['area_sq_meters']:,.2f} |")
-    if record.get('perimeter_meters') is not None:
-        lines.append(f"| Perimeter (m) | {record['perimeter_meters']:,.2f} |")
+    detail_rows = [
+        ["ID", record["id"]],
+        ["Province", record["province"]],
+        ["Data Source", record["data_source"]],
+        ["Image Year", record["image_year"]],
+        ["Latitude", record["latitude"]],
+        ["Longitude", record["longitude"]],
+        ["PRUID", record["pruid"]],
+        ["Area (m²)", record["area_sq_meters"]],
+    ]
+    if record.get("perimeter_meters") is not None:
+        detail_rows.append(["Perimeter (m)", record["perimeter_meters"]])
 
+    output = {
+        "details": {
+            "type": "table",
+            "columns": ["Field", "Value"],
+            "rows": detail_rows,
+        },
+    }
     if geojson:
-        lines.append("")
-        lines.append("## GeoJSON Geometry")
-        lines.append("")
-        lines.append(f"```json\n{json.dumps(geojson, indent=2)}\n```")
+        output["geometry_geojson"] = geojson
 
-    return "\n".join(lines)
+    return json.dumps(output, indent=2, default=str)
 
 
 @mcp.tool()
 def get_provinces() -> str:
-    """
-    Get a summary breakdown by province, including greenhouse count,
-    total area, average area, and which image years are available
-    for each province.
-    """
     summary = get_province_summary()
 
-    lines = ["# Greenhouse Summary by Province", ""]
-    lines.append("| Province | Count | Total Area (m²) | Avg Area (m²) | Image Years |")
-    lines.append("|----------|-------|------------------|---------------|-------------|")
+    rows = []
     for item in summary:
         years = ", ".join(str(y) for y in item["image_years"])
-        lines.append(
-            f"| {item['province']} "
-            f"| {item['greenhouse_count']} "
-            f"| {item['total_area_sq_meters']:,.2f} "
-            f"| {item['avg_area_sq_meters']:,.2f} "
-            f"| {years} |"
-        )
+        rows.append([
+            item["province"],
+            item["greenhouse_count"],
+            item["total_area_sq_meters"],
+            item["avg_area_sq_meters"],
+            years,
+        ])
 
-    return "\n".join(lines)
+    return json.dumps({
+        "type": "table",
+        "columns": ["Province", "Count", "Total Area (m²)", "Avg Area (m²)", "Image Years"],
+        "rows": rows,
+    }, indent=2)
 
 
 if __name__ == "__main__":

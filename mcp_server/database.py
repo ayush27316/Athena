@@ -1,17 +1,10 @@
-"""
-Database layer for loading and querying the StatCan Open Database
-of Greenhouses (ODG_V1) shapefile data.
-"""
-
 from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
 
-# Path to the shapefile relative to this file
 SHAPEFILE_PATH = Path(__file__).resolve().parent.parent / "ODG_V1" / "odg_v1.shp"
 
-# Province ID lookup
 PROVINCE_LOOKUP = {
     24: "Quebec",
     35: "Ontario",
@@ -20,7 +13,6 @@ PROVINCE_LOOKUP = {
     59: "British Columbia",
 }
 
-# Singleton dataframe cache
 _gdf: gpd.GeoDataFrame | None = None
 
 
