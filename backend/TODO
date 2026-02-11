@@ -1,3 +1,0 @@
-Remove sentry, alembic, stmp dependecies. 
-remove all emiling logic, sentry ds, stmp from config.py
-add a script that would start the backend and remove the docker file
