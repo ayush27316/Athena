@@ -1,0 +1,8 @@
+mcp>=1.9.0
+uvicorn>=0.34.0
+geopandas>=1.0.0
+shapely>=2.0.0
+pyproj>=3.6.0
+httpx>=0.28.0
+pytest>=8.0.0
+pytest-asyncio>=0.24.0
