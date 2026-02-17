@@ -14,6 +14,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY mcp_server/ ./mcp_server/
 
+# Copy data directory (ODG_V1 with shapefiles)
+COPY ODG_V1/ ./ODG_V1/
+
 # Expose port
 EXPOSE 8080
 
