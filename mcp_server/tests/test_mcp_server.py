@@ -8,6 +8,7 @@ without starting an HTTP server.
 
 import json
 
+import mcp.types as types
 import pytest
 
 from mcp_server.server import mcp
@@ -17,6 +18,12 @@ pytestmark = pytest.mark.asyncio
 
 def _get_json(result) -> dict | list:
     """Extract parsed JSON from tool call result."""
+    # FastMCP.call_tool now returns a CallToolResult with content blocks.
+    if isinstance(result, types.CallToolResult):
+        text = result.content[0].text
+        return json.loads(text)
+
+    # Legacy fallback (not expected in this project but kept for robustness).
     content_blocks = result[0] if isinstance(result, tuple) else result
     return json.loads(content_blocks[0].text)
 

@@ -76,12 +76,10 @@ mcp = FastMCP(
     transport_security=_transport_security_settings(),
 )
 
-app = mcp.fastapi
-
 
 @mcp.resource(
     TEMPLATE_GREENHOUSE_DETAIL,
-    "Greenhouse detail map",
+    title="Greenhouse detail map",
     mime_type=MIME_TYPE_HTML,
 )
 async def greenhouse_detail_template() -> str:
@@ -287,7 +285,7 @@ async def greenhouse_detail_template() -> str:
 
 @mcp.resource(
     TEMPLATE_GREENHOUSE_SEARCH,
-    "Greenhouse search map and table",
+    title="Greenhouse search map and table",
     mime_type=MIME_TYPE_HTML,
 )
 async def greenhouse_search_template() -> str:
@@ -620,7 +618,7 @@ async def greenhouse_search_template() -> str:
 
 @mcp.resource(
     TEMPLATE_STATISTICS_DASHBOARD,
-    "Greenhouse statistics dashboard",
+    title="Greenhouse statistics dashboard",
     mime_type=MIME_TYPE_HTML,
 )
 async def greenhouse_statistics_template() -> str:
@@ -860,7 +858,7 @@ async def greenhouse_statistics_template() -> str:
 
 @mcp.resource(
     TEMPLATE_PROVINCES_SUMMARY,
-    "Greenhouse provinces summary",
+    title="Greenhouse provinces summary",
     mime_type=MIME_TYPE_HTML,
 )
 async def greenhouse_provinces_template() -> str:
@@ -1007,7 +1005,7 @@ async def greenhouse_provinces_template() -> str:
 
 @mcp.resource(
     TEMPLATE_SCHEMA_TABLE,
-    "Greenhouse database schema",
+    title="Greenhouse database schema",
     mime_type=MIME_TYPE_HTML,
 )
 async def greenhouse_schema_template() -> str:
